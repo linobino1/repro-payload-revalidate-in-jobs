@@ -7,11 +7,49 @@ import sharp from 'sharp'
 
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
+import { revalidatePath } from 'next/cache'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
 export default buildConfig({
+  jobs: {
+    tasks: [
+      {
+        slug: 'revalidate',
+        handler: async () => {
+          console.log('Revalidating...')
+          try {
+            revalidatePath('/')
+            return {
+              state: 'succeeded',
+              output: null,
+            }
+          } catch (error) {
+            console.error('Error revalidating:', error)
+            return {
+              state: 'failed',
+              output: null,
+            }
+          }
+        },
+      },
+    ],
+    autoRun: [
+      {
+        queue: 'constantly',
+        cron: '* * * * *',
+      },
+    ],
+  },
+  async onInit(payload) {
+    console.info('Payload initialized, queueing revalidation job...')
+    await payload.jobs.queue({
+      task: 'revalidate',
+      input: null,
+      queue: 'constantly',
+    })
+  },
   admin: {
     user: Users.slug,
     importMap: {
